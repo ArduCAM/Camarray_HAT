@@ -77,6 +77,7 @@ class ArducamUtils(object):
         v4l2.V4L2_PIX_FMT_SGBRG8:{ "depth":8, "cvt_code": cv2.COLOR_BAYER_GR2BGR, "convert2rgb": 0},
         v4l2.V4L2_PIX_FMT_SGRBG8:{ "depth":8, "cvt_code": cv2.COLOR_BAYER_GB2BGR, "convert2rgb": 0},
         v4l2.V4L2_PIX_FMT_SRGGB8:{ "depth":8, "cvt_code": cv2.COLOR_BAYER_BG2BGR, "convert2rgb": 0},
+        v4l2.V4L2_PIX_FMT_GREY:{ "depth":-1, "cvt_code": cv2.COLOR_GRAY2BGR, "convert2rgb": 0},
     }
 
     AUTO_CONVERT_TO_RGB = { "depth":-1, "cvt_code": -1, "convert2rgb": 1}

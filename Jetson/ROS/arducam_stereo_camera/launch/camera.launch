@@ -1,0 +1,38 @@
+<launch>
+   
+
+<!-- camera node  -->
+
+<group ns="arducam" clear_params="true">
+        <arg name="width" value="1280" />
+        <arg name="height" value="800" />
+        <arg name="device" value="0" />
+        <arg name="frame_id" value="cam0" /> <!--Topic frame_id. -->
+        <arg name="pixelformat" value="GREY" />
+
+        <node name="arducam_stereo_camera" pkg="arducam_stereo_camera" type="arducam_stereo_camera.py" output="screen">
+            <param name="width" type="int" value="$(arg width)" />
+            <param name="height" type="int" value="$(arg height)" />
+            <param name="device" type="int" value="$(arg device)" />
+            <param name="pixelformat" type="string" value="$(arg pixelformat)" />
+
+            <param name="left/camera_info_url" type="string" value="file://$(find arducam_stereo_camera)/example-left.yaml" />
+            <param name="right/camera_info_url" type="string" value="file://$(find arducam_stereo_camera)/example-right.yaml" />
+            <param name="frame_id" value="$(arg frame_id)" />
+        </node>
+
+		<!-- publish node --> 
+		<!-- /arducam/left/camera_info -->
+		<!-- /arducam/left/image_raw  -->
+		<!-- /arducam/right/camera_info -->
+		<!-- /arducam/right/image_raw -->
+
+       <node pkg="gpu_stereo_image_proc" type="vx_gpu_stereo_image_proc" name="vx_gpu_stereo_image_proc">
+       		<param name="approximate_sync"  value="true" />  
+       		<param name="shrink_scale"      value="4" />   
+       </node>
+	<node pkg="tf2_ros" type="static_transform_publisher" name="map_to_tmp" args="0 0 0 0 1.57079632679 0 map tmp" />
+  	<node pkg="tf2_ros" type="static_transform_publisher" name="tmp_to_cameraLeft" args="0 0 0 -1.57079632679 0 0 tmp cameraLeft" />
+
+    </group>
+</launch>

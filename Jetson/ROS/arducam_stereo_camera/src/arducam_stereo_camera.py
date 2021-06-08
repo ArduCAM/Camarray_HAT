@@ -6,13 +6,52 @@ from datetime import datetime
 import array
 import fcntl
 import os
+import math
 import argparse
 from utils import ArducamUtils
+import arducam_isp
 
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, CameraInfo
 from camera_info_manager import CameraInfoManager
+
+class HelpClass(object):
+    def __init__(self, arducam_utils):
+        self.arducam_utils = arducam_utils
+        self.line_length = 1456
+        self.pixel_clock = 96000000.0
+        self.time_per_line = self.line_length / self.pixel_clock *1e9
+        self.reconfigure()
+
+
+    def reconfigure(self):
+        self.line_length = self.arducam_utils.read_sensor(
+            0x380C) << 8 | self.arducam_utils.read_sensor(0x380D)
+        self.time_per_line = self.line_length / self.pixel_clock *1e9
+        self.setFramerate(40)
+        
+
+    def setFramerate(self, val):
+        val = max(val, 2)
+        val = min(val, 120)
+        self.vts = int(self.pixel_clock / (self.line_length * val))
+        print("vts: {}".format(self.vts))
+        ret = self.arducam_utils.write_sensor(0x380E, (self.vts & 0xFF00) >> 8)
+        ret = self.arducam_utils.write_sensor(0x380F, (self.vts & 0x00FF) >> 0)
+
+    def setCtrl(self, name, val):
+        # print("name: {}, val:{}".format(name, val))
+        if name == "setExposureTime":
+            coarse_time = int(math.floor(val*1000 / self.time_per_line))
+            coarse_time = min(coarse_time, self.vts - 12)
+            ret = self.arducam_utils.write_sensor(0x3500, (coarse_time & 0xF000) >> 12)
+            ret = self.arducam_utils.write_sensor(0x3501, (coarse_time & 0x0FF0) >> 4)
+            ret = self.arducam_utils.write_sensor(0x3502, (coarse_time & 0x000f) << 4)
+        elif name == "setAnalogueGain":
+            gain = int(math.floor(val / 100))
+            ret = self.arducam_utils.write_sensor(0x3509, (gain & 0x0F) << 4 | int(math.floor((val / 100.0) % 1 * 16)))
+        return 0
 
 
 def resize(frame, dst_width):
@@ -22,6 +61,12 @@ def resize(frame, dst_width):
     return cv2.resize(frame, (int(scale * width), int(scale * height)))
 
 def run(cap, arducam_utils):
+    path = os.path.dirname(os.path.abspath(__file__))
+    info = arducam_isp.CameraInfo()
+    isp = arducam_isp.ISP(path + "/ov9281.json", info)
+    cap.grab()
+    helper = HelpClass(arducam_utils)
+    isp.registerCallback(helper.setCtrl)
 
     left_info_mgr = CameraInfoManager(cname='left_camera', namespace='left')
     right_info_mgr = CameraInfoManager(cname='right_camera', namespace='right')
@@ -46,6 +91,11 @@ def run(cap, arducam_utils):
             w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
             h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             frame = frame.reshape(int(h), int(w))
+
+        left = frame[:, 0:int(w//2)]
+        process_frame = left.astype(np.uint16)
+        process_frame <<= 8
+        isp.queueBuffer(process_frame)
 
         frame = arducam_utils.convert(frame)
 
